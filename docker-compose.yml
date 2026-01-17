@@ -1,0 +1,118 @@
+version: '3.8'
+
+name: mobiik
+services:
+  # ================= FastAPI =================
+  fastapi:
+    container_name: fastapi-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app/
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env.dev
+    depends_on:
+      - redis
+      - mongo
+      - postgres
+    networks:
+      - eh-emulator
+
+  # ================= Redis =================
+  redis:
+    container_name: redis
+    image: redis:6.2
+    ports:
+      - "6379:6379"
+    networks:
+      eh-emulator:
+        aliases:
+          - "redis"
+
+  redisinsight:
+    container_name: redisinsight
+    image: redis/redisinsight:latest
+    ports:
+      - "5540:5540"
+    networks:
+      eh-emulator:
+        aliases:
+          - "redisinsight"
+    depends_on:
+      - redis
+
+  # ================= MongoDB =================
+  mongo:
+    container_name: mongo
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: core
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      eh-emulator:
+        aliases:
+          - "mongo"
+
+  mongo-express:
+    container_name: mongo-express
+    image: mongo-express:latest
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongo
+    depends_on:
+      - mongo
+    networks:
+      eh-emulator:
+        aliases:
+          - "mongo-express"
+
+  # ================= PostgreSQL =================
+  postgres:
+    container_name: postgres
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: core
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      eh-emulator:
+        aliases:
+          - "postgres"
+
+  pgadmin:
+    container_name: pgadmin
+    image: dpage/pgadmin4:latest
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      eh-emulator:
+        aliases:
+          - "pgadmin"
+
+# ================= Volúmenes =================
+volumes:
+  mongo-data:
+  postgres-data:
+
+# ================= Redes =================
+networks:
+  eh-emulator:
