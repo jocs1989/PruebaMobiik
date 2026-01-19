@@ -5,6 +5,7 @@ import logging
 import os
 from asyncio import gather
 from contextlib import asynccontextmanager
+from asyncpg import create_pool, Pool
 
 # Librerías de terceros
 from beanie import init_beanie
@@ -27,9 +28,10 @@ from src.database.db_connection import (
     ping_redis_server,
 )
 
-from src.models.model_document import CoreModel
+from src.models.mongo.model_document import CoreModel
 from logger import get_logger
-
+from src.database.db_connection import engine, Base
+from src.database.seed import seed_roles
 
 # Configura el logger global
 logger = get_logger(__name__)
@@ -46,7 +48,18 @@ async def lifespan(app: FastAPI):
     app.redis_client = await init_redis()
     logger_uvicorn = logging.getLogger("uvicorn")
     logger_uvicorn.info(f"Mode {config.ENV}")
-    # eventhub
+    # postgres
+    logger.info("Starting FastAPI app and connecting to PostgreSQL...")
+
+    # Crear tablas si no existen (solo la primera vez)
+    # --- PostgreSQL ---
+    logger.info("Connecting to PostgreSQL...")
+    async with engine.begin() as conn:
+        # Crear tablas si no existen
+        await conn.run_sync(Base.metadata.create_all)
+        # Insertar roles iniciales
+        await seed_roles(conn)
+        logger.info("PostgreSQL tables created and roles seeded")
 
     await gather(
         ping_redis_server(redis=app.redis_client),
@@ -56,6 +69,8 @@ async def lifespan(app: FastAPI):
 
     yield
     app.mongodb_client.close()
+    logger.info("Shutting down FastAPI app and closing PostgreSQL connection...")
+    await engine.dispose()
 
     # await eventhub_service.stop()
 

@@ -5,8 +5,10 @@ from logger import get_logger
 from config import config
 from redis.asyncio import Redis
 from redis.asyncio.connection import ConnectionPool
-
-
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+from typing import AsyncGenerator
+from sqlalchemy.orm import relationship, declarative_base
 # MONGO
 logger = logging.getLogger("uvicorn")
 
@@ -15,12 +17,12 @@ logger = get_logger(__name__)
 
 
 def init_mongo():
-    env = os.getenv("ENV", "development").lower()
+    env = os.getenv("ENV", "local").lower()
 
     if env == "production":
         logger.info("Mongo mod PROD")
         return AsyncIOMotorClient(
-            config.MONGODB_URI , tls=True, tlsAllowInvalidCertificates=True
+            config.MONGODB_URI, tls=True, tlsAllowInvalidCertificates=True
         )
 
     elif env == "local":
@@ -89,3 +91,29 @@ async def ping_redis_server(redis: Redis):
     except Exception as e:
         logger.error(f"Error connecting to Redis: {e}")
         raise e
+
+
+# Postgrest
+
+SQLALCHEMY_DATABASE_URI = (
+    f"postgresql+asyncpg://{config.POSTGRES_USER}:{config.POSTGRES_PASSWORD}"
+    f"@{config.POSTGRES_HOST}:{config.POSTGRES_PORT}/{config.POSTGRES_DB}"
+)
+engine = create_async_engine(SQLALCHEMY_DATABASE_URI, echo=True)
+Base = declarative_base()
+# Session async
+AsyncSessionLocal = sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autocommit=False,
+    autoflush=False,
+)
+
+# Dependency para endpoints
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()

@@ -1,13 +1,102 @@
 # Librerías estándar de Python
 from datetime import datetime
-from typing import Optional, List,Any, Dict, Union
+from typing import Optional, List, Any, Dict, Union
 from enum import Enum
 
 # Librerías de terceros
 from bson import ObjectId
 from fastapi import HTTPException, status
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, model_validator, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    ConfigDict,
+)
+
+## Create
+
+
+# =========================
+# Model Item
+# =========================
+
+
+class ModelItem(BaseModel):
+    id: str = Field(
+        ...,
+        alias="_id",
+        example="507f1f77bcf86cd799439011",
+        description="Identificador único del modelo",
+    )
+    status: str
+
+    class Config:
+        allow_population_by_field_name = True
+        json_encoders = {ObjectId: str}
+
+
+# =========================
+# Create Model Responses
+# =========================
+
+
+class CreateModel201Response(BaseModel):
+    status: str = Field(
+        "success", example="success", description="Estado de la solicitud"
+    )
+    detail: str = Field(
+        "Modelo creado correctamente",
+        example="Modelo creado correctamente",
+        description="Mensaje informativo del resultado",
+    )
+    result: ModelItem = Field(..., description="Modelo creado")
+
+
+class CreateModel400Response(BaseModel):
+    status: str = Field("failed", example="failed")
+    detail: str = Field("Solicitud incorrecta", example="Solicitud incorrecta")
+
+
+class CreateModel401Response(BaseModel):
+    status: str = Field("failed", example="failed")
+    detail: str = Field("Missing  header", example="Missing header")
+
+
+class CreateModel403Response(BaseModel):
+    status: str = Field("failed", example="failed")
+    detail: str = Field("Permission denied", example="Permission denied")
+
+
+class CreateModel500Response(BaseModel):
+    status: str = Field("failed", example="failed")
+    detail: str = Field(
+        "No se pudo crear el modelo",
+        example="No se pudo crear el modelo. Contacte con soporte.",
+    )
+
+
+class CreateModel503Response(BaseModel):
+    status: str = Field("503 Service Unavailable", example="503 Service Unavailable")
+    detail: str = Field(
+        "Servicio no disponible temporalmente",
+        example="Servicio no disponible temporalmente. Intente más tarde.",
+    )
+
+
+responses_create_model = {
+    status.HTTP_201_CREATED: {
+        "model": CreateModel201Response,
+        "description": "Modelo creado correctamente",
+    },
+    status.HTTP_400_BAD_REQUEST: {"model": CreateModel400Response},
+    status.HTTP_401_UNAUTHORIZED: {"model": CreateModel401Response},
+    status.HTTP_403_FORBIDDEN: {"model": CreateModel403Response},
+    status.HTTP_500_INTERNAL_SERVER_ERROR: {"model": CreateModel500Response},
+    status.HTTP_503_SERVICE_UNAVAILABLE: {"model": CreateModel503Response},
+}
+
+###############################3
+##############################3
 
 
 class ItemInput(BaseModel):
@@ -22,120 +111,23 @@ class ItemResponse(BaseModel):
     class Config:
         json_encoders = {ObjectId: str}  # Convierte ObjectId a string en la respuesta
 
-
-
-
 class ModelItem(BaseModel):
-    id: str = Field(
+    id: str= Field(
         ...,
         alias="_id",
         example="01998196-edc0-78d2-996b-7f12b3cf7eb7",
-        description="Identificador único del modelo"
+        description="Identificador único del modelo",
     )
+    model_name: str
+    description: str
+    model_class: List[str]
 
-    user_assigned_name: str = Field(
-        ...,
-        alias="userAssignedName",
-        example="Score de Riesgo",
-        description="Nombre asignado por el usuario"
+    model_config = ConfigDict(
+        populate_by_name=True,  # equivale a allow_population_by_field_name
+        json_encoders={ObjectId: str},  # json_encoders sigue funcionando
+        serialize_by_alias=True
     )
-
-    user_description: str = Field(
-        ...,
-        alias="userDescription",
-        example="Puntaje crediticio basado en datos históricos",
-        description="Descripción funcional del modelo"
-    )
-
-    current_status: str = Field(
-        ...,
-        alias="currentStatus",
-        example="SERVING",
-        description="Estado actual del modelo"
-    )
-
-    current_version: int = Field(
-        ...,
-        alias="currentVersion",
-        example=1,
-        description="Versión actual del modelo"
-    )
-
-    # =========================
-    # Métricas (opcionales)
-    # =========================
-
-    model_total_data: Optional[int] = Field(
-        None,
-        alias="modelTotalData",
-        example=63494,
-        description="Total de registros utilizados por el modelo"
-    )
-
-    model_data_positive: Optional[int] = Field(
-        None,
-        alias="modelDataPositive",
-        example=62171,
-        description="Cantidad de registros positivos"
-    )
-
-    model_data_negative: Optional[int] = Field(
-        None,
-        alias="modelDataNegative",
-        example=1323,
-        description="Cantidad de registros negativos"
-    )
-
-    model_data_score: Optional[float] = Field(
-        None,
-        alias="modelDataScore",
-        example=545.45,
-        description="Score promedio del modelo"
-    )
-
-    ks: Optional[float] = Field(
-        None,
-        alias="KS",
-        example=0.12,
-        description="Estadístico KS del modelo"
-    )
-
-    roc_auc: Optional[float] = Field(
-        None,
-        alias="Roc_Auc",
-        example=0.58,
-        description="Área bajo la curva ROC (AUC)"
-    )
-
-    # =========================
-    # Fechas y tiempos
-    # =========================
-
-    started_at: datetime = Field(
-        ...,
-        alias="startedAt",
-        example="2025-12-22T17:09:33.382+00:00",
-        description="Fecha de inicio del proceso"
-    )
-
-    ended_at: Optional[datetime] = Field(
-        None,
-        alias="endedAt",
-        example="2025-12-22T17:09:33.382+00:00",
-        description="Fecha de finalización del proceso"
-    )
-
-    time_execution_hrs: Optional[float] = Field(
-        None,
-        alias="timeExecutionHrs",
-        example=1.59,
-        description="Tiempo total de ejecución en horas"
-    )
-
-    class Config:
-        allow_population_by_field_name = True
-        json_encoders = {ObjectId: str}
-
+ 
 # =========================
 # Success Response
 # =========================
@@ -162,9 +154,7 @@ class GetAllModels400Response(BaseModel):
 
 class GetAllModels401Response(BaseModel):
     status: str = Field("failed", example="failed")
-    detail: str = Field(
-        "Missing finvero-user header", example="Missing finvero-user header"
-    )
+    detail: str = Field("Missing header", example="Missing  header")
 
 
 class GetAllModels403Response(BaseModel):
@@ -209,8 +199,6 @@ responses_get_all_models = {
 }
 
 
-
-
 class ErrorResponse(BaseModel):
     detail: str = Field(
         "Se produjo un error",
@@ -240,5 +228,3 @@ class CustomHTTPException(HTTPException):
         return JSONResponse(
             content=self.response_body.dict(), status_code=self.status_code
         )
-
-

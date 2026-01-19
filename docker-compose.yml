@@ -18,6 +18,7 @@ services:
       - redis
       - mongo
       - postgres
+      - ollama
     networks:
       - eh-emulator
 
@@ -87,6 +88,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      - ./src/database/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
     networks:
       eh-emulator:
         aliases:
@@ -108,11 +110,26 @@ services:
         aliases:
           - "pgadmin"
 
+
+  # ================= Ollama (Local LLM API) =================
+  ollama:
+    container_name: ollama
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - eh-emulator
+
 # ================= Volúmenes =================
 volumes:
   mongo-data:
   postgres-data:
+  ollama-data:
+  hoppscotch-data:
 
-# ================= Redes =================
+    # ================= Redes =================
 networks:
   eh-emulator:

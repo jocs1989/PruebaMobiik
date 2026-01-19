@@ -29,14 +29,11 @@ class ModelRepository:
             raise ValueError("El documento debe ser un diccionario")
 
         result = await self.collection.insert_one(document=document)
-        
+
         uuid_str = str(result.inserted_id)
         logging.info(f"Documento insertado con ID: {uuid_str}")
 
         return uuid_str
-
-
- 
 
     async def get_all_models(
         self, skip: int = 0, limit: int = 10, filters: dict = None, fields: dict = None
@@ -44,42 +41,18 @@ class ModelRepository:
 
         max_limit = int(config.MAX_LIMIT)  # Límite máximo
         limit = min(limit, max_limit)  # Asegurarse de que limit no exceda max_limit
-      
 
-       
         # Realizar la consulta
         pipeline = [
-           
             {
                 "$project": {
                     "_id": 1,
-                    "userAssignedName": 1,
-                    "userDescription": 1,
-                    "currentStatus": 1,
-                    "currentVersion": 1,
-                    "metrics": 1,
-                    "startedAt": {
-                        "$dateToString": {
-                            "format": "%Y-%m-%dT%H:%M:%S.%L",
-                            "date": "$startedAt",
-                        }
-                    },
-                    "endedAt": {
-                        "$dateToString": {
-                            "format": "%Y-%m-%dT%H:%M:%S.%L",
-                            "date": "$endedAt",
-                        }
-                    },
-                    # ✅ Tiempo de ejecución en horas
-                    "timeExecutionHrs": {
-                        "$divide": [
-                            {"$subtract": ["$endedAt", "$startedAt"]},
-                            1000 * 60 * 60,  # milisegundos a horas
-                        ]
-                    },
+                    "model_name": 1,
+                    "description": 1,
+                    "model_class": 1,
                 }
             },
-            {"$sort": {"startedAt": -1}},
+            # {"$sort": {"campo": -1}},
             {"$skip": skip},
             {"$limit": limit},
         ]
@@ -87,5 +60,3 @@ class ModelRepository:
         models_list = await self.collection.aggregate(pipeline).to_list(length=limit)
 
         return models_list
-
-    

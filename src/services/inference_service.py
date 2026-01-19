@@ -2,7 +2,8 @@
 
 from uuid import UUID
 from fastapi import Request, HTTPException
-
+from bson import ObjectId
+from typing import Any
 
 # Librerías de terceros
 from fastapi import Request
@@ -19,8 +20,6 @@ logger = get_logger(__name__)
 
 
 # Función para obtener modelos con paginación, filtros y proyección
-
-
 
 
 async def create_model(request: Request, body: dict):
@@ -50,15 +49,20 @@ async def get_models_from_db(
     models = await model_repository.get_all_models(
         skip=skip, limit=limit, filters=filters, fields=fields
     )
-    total_items = await model_repository.get_total_models()
-    current_page = (skip // limit) + 1
-    total_pages = (total_items + limit - 1) // limit
-    data = process_models(models)
 
-    return {
-        "data": data,
-        "totalItems": total_items,
-        "currentPage": current_page,
-        "totalPages": total_pages,
-    }
+    return serialize_mongo_doc(models)
 
+
+def serialize_mongo_doc(doc: Any) -> Any:
+    """
+    Convierte todos los ObjectId de un dict/list/objeto a str.
+    Funciona recursivamente en documentos nested.
+    """
+    if isinstance(doc, list):
+        return [serialize_mongo_doc(item) for item in doc]
+    elif isinstance(doc, dict):
+        return {k: serialize_mongo_doc(v) for k, v in doc.items()}
+    elif isinstance(doc, ObjectId):
+        return str(doc)
+    else:
+        return doc
