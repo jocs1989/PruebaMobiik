@@ -1,60 +1,6 @@
-```bash
 #!/usr/bin/env bash
-set -e
-
-#######################################
-# Crear archivo .env.dev
-#######################################
-
-ENV_FILE=".env.dev"
-
-echo "📝 Creando $ENV_FILE ..."
-
-cat <<EOF > $ENV_FILE
-ENV=local
-APP_ENV=local
-APP_NAME=MobiikPruebaTecnica
-PORT=8080
-HOST=0.0.0.0
-LOG_LEVEL=INFO
-
-SWAGGER_USER=admin
-SWAGGER_PASS=root
-TITLE=Api_Template
-
-MONGO_MODEL_DB=core
-MONGO_MODEL_COLLECTION=models
-MONGODB_URI=mongodb://mongo:27017
-
-MAX_LIMIT=10
-
-SECRET_KEY=09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-
-POSTGRES_USER=admin
-POSTGRES_PASSWORD=admin123
-POSTGRES_DB=core
-POSTGRES_HOST=postgres
-POSTGRES_PORT=5432
-
-OLLAMA_URL=http://ollama:11434/api/generate
-MODEL_NAME=llama2-mini
-EOF
-
-echo "✅ .env.dev creado correctamente"
-echo
-
-#######################################
-# Levantar Docker Compose
-#######################################
-
-docker compose --env-file .env.dev up --build -d
-
-#######################################
+docker compose --env-file .env.dev up --build -d 
 # Colores
-#######################################
-
 GREEN="\033[0;32m"
 BLUE="\033[0;34m"
 CYAN="\033[0;36m"
@@ -87,4 +33,3 @@ echo -e "\n${CYAN}📦 Bases de datos:${RESET}"
 echo -e "Postgres: localhost:5432"
 echo -e "MongoDB:  localhost:27017"
 echo -e "Redis:    localhost:6379\n"
-```
