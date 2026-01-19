@@ -110,7 +110,6 @@ services:
         aliases:
           - "pgadmin"
 
-
   # ================= Ollama (Local LLM API) =================
   ollama:
     container_name: ollama
@@ -122,6 +121,7 @@ services:
     restart: unless-stopped
     networks:
       - eh-emulator
+
 
 # ================= Volúmenes =================
 volumes:

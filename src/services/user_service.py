@@ -69,3 +69,5 @@ async def create_user_service(user_in: UserCreate, db: AsyncSession) -> User:
     db_user = result.unique().scalar_one_or_none()
 
     return db_user
+
+

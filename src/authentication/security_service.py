@@ -7,8 +7,12 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jwt.exceptions import InvalidTokenError
 from pwdlib import PasswordHash
 from pydantic import BaseModel
-from src.schemas.token_schemas import UserInDB, TokenData , Token
+from src.schemas.token_schemas import UserInDB, TokenData, Token
 from src.models.postgres.user_model import User
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
+from src.database.db_connection import get_db
 
 # to get a string like this run:
 # openssl rand -hex 32
@@ -36,8 +40,10 @@ def get_user(db, username: str):
         return UserInDB(**user_dict)
 
 
-def authenticate_user(fake_db, username: str, password: str):
-    user = get_user(fake_db, username)
+async def authenticate_user(db: AsyncSession, email: str, password: str):
+
+    user = await get_user_by_email(db, email=email)
+
     if not user:
         return False
     if not verify_password(password, user.hashed_password):
@@ -55,17 +61,29 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-fake_users_db = {
-    "johndoe": {
-        "username": "johndoe",
-        "full_name": "John Doe",
-        "email": "johndoe@example.com",
-        "hashed_password": "$argon2id$v=19$m=65536,t=3,p=4$wagCPXjifgvUFBzq4hqe3w$CYaIb8sB+wtD+Vu/P4uod1+Qof8h+1g7bbDlBID48Rc",
-        "disabled": False,
-    }
-}
 
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
+async def get_user_by_email(db: AsyncSession, email: str) -> User:
+    """
+    Obtiene un usuario por email, incluyendo sus roles.
+    """
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.roles))  # Cargar roles relacionados
+        .where(User.email == email)
+    )
+    user = result.unique().scalar_one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Usuario con email '{email}' no encontrado",
+        )
+    return user
+
+
+async def get_current_user(
+    token: Annotated[str, Depends(oauth2_scheme)],
+    db: AsyncSession = Depends(get_db),  # <-- aquí usamos tu dependency
+):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -79,7 +97,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
         token_data = TokenData(username=username)
     except InvalidTokenError:
         raise credentials_exception
-    user = get_user(fake_users_db, username=token_data.username)
+    user = get_user_by_email(db, email=token_data.username)
     if user is None:
         raise credentials_exception
     return user
@@ -91,9 +109,3 @@ async def get_current_active_user(
     if current_user.disabled:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
-
-
-
-
-
-

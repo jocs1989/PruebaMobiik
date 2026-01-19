@@ -11,7 +11,7 @@ from fastapi import (
     Query,
     Request,
 )
-
+import requests
 
 # Proyecto local
 from logger import get_logger
@@ -26,7 +26,8 @@ from src.services.inference_service import (
     get_models_from_db,
     create_model,
 )
-
+from src.schemas.llama_model_schema import AskRequest, AskResponse
+from config import config
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -87,3 +88,20 @@ async def get_models(
         raise HTTPException(
             status_code=500, detail=f"Error al obtener los modelos: {str(e)}"
         )
+
+
+@router.post("/ask", response_model=AskResponse)
+def ask_model(req: AskRequest):
+    payload = {
+        "model": config.MODEL_NAME,
+        "prompt": req.question,
+        "max_tokens": 100,  # respuestas cortas para pruebas
+    }
+    try:
+        response = requests.post(config.OLLAMA_URL, json=payload, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        answer = data["results"][0]["content"]
+    except Exception as e:
+        answer = f"Error al consultar Ollama: {e}"
+    return {"answer": answer}

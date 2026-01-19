@@ -31,6 +31,8 @@ class BaseConfig(BaseSettings):
     POSTGRES_DB: str = "core"
     POSTGRES_HOST: str = "postgres"
     POSTGRES_PORT: int = 5432
+    OLLAMA_URL: str = "http://ollama:11434/api/generate"
+    MODEL_NAME: str = "llama2-mini"
     """Loads the dotenv file. Including this is necessary to get
     pydantic to load a .env file."""
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
