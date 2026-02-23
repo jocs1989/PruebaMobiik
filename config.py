@@ -26,6 +26,7 @@ class BaseConfig(BaseSettings):
     SECRET_KEY: str = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    POSTGRES_POOL_SIZE: int = 5
     POSTGRES_USER: str = "admin"
     POSTGRES_PASSWORD: str = "admin123"
     POSTGRES_DB: str = "core"
@@ -38,7 +39,7 @@ class BaseConfig(BaseSettings):
         f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}"
         f"@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
     )
-
+    REDIS_URL: str = "redis://redis:6379"
     """Loads the dotenv file. Including this is necessary to get
     pydantic to load a .env file."""
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

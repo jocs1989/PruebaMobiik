@@ -8,11 +8,13 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 from langgraph.graph import StateGraph, MessagesState, START
 from langgraph.store.postgres.aio import AsyncPostgresStore
+from psycopg_pool import AsyncConnectionPool
+from config import config
 
 # -------------------------------
 # Configuración de Base de Datos
 # -------------------------------
-SQLALCHEMY_DATABASE_URI = "host=postgres port=5432 dbname=core user=admin password=admin123"
+SQLALCHEMY_DATABASE_URI = config.SQLALCHEMY_DATABASE_URI
 REDIS_URI = config.REDIS_DB_URI  # Ejemplo: redis://redis:6379/0
 
 # -------------------------------
@@ -21,12 +23,14 @@ REDIS_URI = config.REDIS_DB_URI  # Ejemplo: redis://redis:6379/0
 logger = logging.getLogger("LangGraphAgent")
 logging.basicConfig(level=logging.INFO)
 
+
 # -------------------------------
 # Contexto
 # -------------------------------
 @dataclass
 class Context:
     user_id: str
+
 
 # -------------------------------
 # Modelo de ejemplo
@@ -35,6 +39,7 @@ async def call_model(state: MessagesState):
     """Simula llamada a modelo de lenguaje"""
     response = "Hello"
     return {"messages": response}
+
 
 # -------------------------------
 # LangGraphAgent
@@ -51,6 +56,52 @@ class LangGraphAgent:
         self._checkpointer: Optional[AsyncRedisSaver] = None
         self._graph: Optional[StateGraph] = None
 
+    async def _get_connection_pool(self) -> AsyncConnectionPool:
+        """Get a PostgreSQL connection pool using environment-specific settings.
+
+        Returns:
+            AsyncConnectionPool: A connection pool for PostgreSQL database.
+        """
+        if self._connection_pool is None:
+            try:
+                # Configure pool size based on environment
+                max_size = config.POSTGRES_POOL_SIZE
+
+                connection_url = (
+                    "postgresql://"
+                    f"{config.POSTGRES_USER}:{config.POSTGRES_PASSWORD}"
+                    f"@{config.POSTGRES_HOST}:{config.POSTGRES_PORT}/{config.POSTGRES_DB}"
+                )
+
+                self._connection_pool = AsyncConnectionPool(
+                    connection_url,
+                    open=False,
+                    max_size=max_size,
+                    kwargs={
+                        "autocommit": True,
+                        "connect_timeout": 5,
+                        "prepare_threshold": None,
+                    },
+                )
+                await self._connection_pool.open()
+                logger.info(
+                    "connection_pool_created", max_size=max_size, environment=config.ENV
+                )
+            except Exception as e:
+                logger.error(
+                    "connection_pool_creation_failed",
+                    error=str(e),
+                    environment=config.ENV,
+                )
+                # In production, we might want to degrade gracefully
+                if config.ENV == "PRODUCTION":
+                    logger.warning(
+                        "continuing_without_connection_pool", environment=config.ENV
+                    )
+                    return None
+                raise e
+        return self._connection_pool
+
     # -------------------------------
     # START
     # -------------------------------
@@ -58,27 +109,28 @@ class LangGraphAgent:
         logger.info("Starting LangGraphAgent...")
 
         # --- Conexión PostgreSQL asincrónica ---
-        self._store = await AsyncPostgresStore.from_conn_string(
-            conn_string=self._db_uri
-        ).__aenter__()
-        logger.info("Connected to PostgreSQL")
 
-        # --- Conexión Redis asincrónica ---
-        self._checkpointer = await AsyncRedisSaver.from_conn_string(
-            self._redis_uri
-        ).__aenter__()
-        logger.info("Connected to Redis")
+        async with (
+            AsyncPostgresStore.from_conn_string(self._db_uri) as store,
+            AsyncPostgresSaver.from_conn_string(self._redis_uri) as checkpointer,
+        ):
+            logger.info("Connected to Post")
+            await store.setup()
+            # --- Conexión Redis asincrónica ---
 
-        # --- Construcción del grafo ---
-        builder = StateGraph(MessagesState, context_schema=Context)
-        builder.add_node(call_model)
-        builder.add_edge(START, "call_model")
+            logger.info("Connected to Redis")
 
-        self._graph = builder.compile(
-            store=self._store,
-            checkpointer=self._checkpointer
-        )
-        logger.info("LangGraphAgent ready.")
+            await checkpointer.setup()
+
+            # --- Construcción del grafo ---
+            builder = StateGraph(MessagesState, context_schema=Context)
+            builder.add_node(call_model)
+            builder.add_edge(START, "call_model")
+
+            self._graph = builder.compile(
+                store=self._store, checkpointer=self._checkpointer
+            )
+            logger.info("LangGraphAgent ready.")
 
     # -------------------------------
     # SHUTDOWN

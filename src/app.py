@@ -33,6 +33,12 @@ from logger import get_logger
 from src.database.db_connection import engine, Base
 from src.database.seed import seed_roles
 from src.core.graph import LangGraphAgent
+from langgraph.store.postgres.aio import AsyncPostgresStore
+from langgraph.checkpoint.redis.aio import AsyncRedisSaver
+from dataclasses import dataclass
+from langgraph.graph import StateGraph, MessagesState, START
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 
 # Configura el logger global
 logger = get_logger(__name__)
@@ -42,19 +48,33 @@ load_dotenv(".env.dev") if os.getenv("APP_ENV") == "local" else load_dotenv(".en
 TITLE = config.APP_NAME
 
 
+@dataclass
+class Context:
+    user_id: str
+
+
+# -------------------------------
+# Modelo de ejemplo
+# -------------------------------
+async def call_model(state: MessagesState):
+    """Simula llamada a modelo de lenguaje"""
+    response = "Hello"
+    return state
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 
     # ---------------------------
     # MongoDB
     # ---------------------------
-    app.mongodb_client = init_mongo()
-    app.mongodb = app.mongodb_client[config.MONGO_MODEL_DB]
+    # app.mongodb_client = init_mongo()
+    # app.mongodb = app.mongodb_client[config.MONGO_MODEL_DB]
 
     # ---------------------------
     # Redis
     # ---------------------------
-    app.redis_client = await init_redis()
+    # app.redis_client = await init_redis()
 
     logger.info(f"Mode {config.ENV}")
     logger.info("Starting FastAPI app and connecting to databases...")
@@ -70,28 +90,18 @@ async def lifespan(app: FastAPI):
     # ---------------------------
     # Inicializar LangGraphAgent con Redis y Postgres
     # ---------------------------
-
-    SQLALCHEMY_DATABASE_URI = (
-    f"postgresql://{config.POSTGRES_USER}:{config.POSTGRES_PASSWORD}"
-    f"@{config.POSTGRES_HOST}:{config.POSTGRES_PORT}/{config.POSTGRES_DB}"
-)
-
-
-    app.agent = LangGraphAgent(
-        db_uri=SQLALCHEMY_DATABASE_URI, redis_uri=config.REDIS_DB_URI
-    )
-    logger.info("Starting LangGraphAgent...")
     # ---------------------------
     # Ping async databases concurrently
     # ---------------------------
-    await gather(
-        ping_redis_server(redis=app.redis_client),
-        ping_mongo_db_server(app.mongodb),
-        app.agent.start(),
-    )
-    logger.info(f"All databases connected successfully")
 
-    logger.info("LangGraphAgent started successfully.")
+    # await gather(
+    #    ping_redis_server(redis=app.redis_client),
+    #    ping_mongo_db_server(app.mongodb),
+    #
+    # )
+
+
+ 
 
     yield  # punto donde la app ya está lista para servir requests
 
@@ -99,13 +109,9 @@ async def lifespan(app: FastAPI):
     # Shutdown: cerrar recursos
     # ---------------------------
     logger.info("Shutting down FastAPI app and closing connections...")
-    await app.redis_client.close()
-    app.mongodb_client.close()
+    # await app.redis_client.close()
+    # app.mongodb_client.close()
     await engine.dispose()
-    logger.info("All connections closed successfully")
-    logger.info("Shutting down LangGraphAgent...")
-    await app.agent.shutdown()
-    logger.info("LangGraphAgent shutdown complete.")
 
 
 def get_app():
