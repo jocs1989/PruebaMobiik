@@ -5,10 +5,11 @@ from logger import get_logger
 from config import config
 from redis.asyncio import Redis
 from redis.asyncio.connection import ConnectionPool
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
 from typing import AsyncGenerator
 from sqlalchemy.orm import relationship, declarative_base
+
 # MONGO
 logger = logging.getLogger("uvicorn")
 
@@ -95,25 +96,27 @@ async def ping_redis_server(redis: Redis):
 
 # Postgrest
 
+
 SQLALCHEMY_DATABASE_URI = (
     f"postgresql+asyncpg://{config.POSTGRES_USER}:{config.POSTGRES_PASSWORD}"
     f"@{config.POSTGRES_HOST}:{config.POSTGRES_PORT}/{config.POSTGRES_DB}"
 )
-engine = create_async_engine(SQLALCHEMY_DATABASE_URI, echo=True)
+
+engine: AsyncEngine = create_async_engine(
+    SQLALCHEMY_DATABASE_URI,
+    echo=True,
+    pool_size=20,
+    max_overflow=10,
+)
+
 Base = declarative_base()
-# Session async
+
 AsyncSessionLocal = sessionmaker(
     bind=engine,
     class_=AsyncSession,
     expire_on_commit=False,
-    autocommit=False,
-    autoflush=False,
 )
 
-# Dependency para endpoints
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
+        yield session

@@ -33,6 +33,12 @@ class BaseConfig(BaseSettings):
     POSTGRES_PORT: int = 5432
     OLLAMA_URL: str = "http://ollama:11434/api/generate"
     MODEL_NAME: str = "llama2-mini"
+    REDIS_DB_URI: str = "redis://redis:6379"
+    SQLALCHEMY_DATABASE_URI: str = (
+        f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}"
+        f"@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
+    )
+
     """Loads the dotenv file. Including this is necessary to get
     pydantic to load a .env file."""
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

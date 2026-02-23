@@ -1,3 +1,6 @@
+.PHONY: run dev install shell test lint format migrate
+
+# Variables
 ENV=local
 APP_ENV=local
 APP_NAME=MobiikPruebaTecnica
@@ -21,3 +24,27 @@ POSTGRES_HOST=postgres
 POSTGRES_PORT=5432
 OLLAMA_URL = "http://ollama:11434/api/generate"
 MODEL_NAME = "llama2-mini"
+
+install:
+	poetry install
+
+dev:
+	poetry run uvicorn $(APP) --reload --host $(HOST) --port $(PORT) 
+
+run:
+	poetry run uvicorn $(APP) --host $(HOST) --port $(PORT) 
+
+shell:
+	poetry shell
+
+test:
+	poetry run pytest
+
+lint:
+	poetry run ruff check .
+
+format:
+	poetry run ruff format .
+
+migrate:
+	poetry run alembic upgrade head

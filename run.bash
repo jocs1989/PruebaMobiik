@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-docker compose --env-file .env.dev up --build -d 
+docker compose --env-file .env.dev up --build -d   
 # Colores
 GREEN="\033[0;32m"
 BLUE="\033[0;34m"

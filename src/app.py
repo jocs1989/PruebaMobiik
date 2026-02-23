@@ -32,6 +32,7 @@ from src.models.mongo.model_document import CoreModel
 from logger import get_logger
 from src.database.db_connection import engine, Base
 from src.database.seed import seed_roles
+from src.core.graph import LangGraphAgent
 
 # Configura el logger global
 logger = get_logger(__name__)
@@ -43,36 +44,68 @@ TITLE = config.APP_NAME
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+
+    # ---------------------------
+    # MongoDB
+    # ---------------------------
     app.mongodb_client = init_mongo()
     app.mongodb = app.mongodb_client[config.MONGO_MODEL_DB]
-    app.redis_client = await init_redis()
-    logger_uvicorn = logging.getLogger("uvicorn")
-    logger_uvicorn.info(f"Mode {config.ENV}")
-    # postgres
-    logger.info("Starting FastAPI app and connecting to PostgreSQL...")
 
-    # Crear tablas si no existen (solo la primera vez)
-    # --- PostgreSQL ---
-    logger.info("Connecting to PostgreSQL...")
+    # ---------------------------
+    # Redis
+    # ---------------------------
+    app.redis_client = await init_redis()
+
+    logger.info(f"Mode {config.ENV}")
+    logger.info("Starting FastAPI app and connecting to databases...")
+
+    # ---------------------------
+    # PostgreSQL
+    # ---------------------------
     async with engine.begin() as conn:
-        # Crear tablas si no existen
         await conn.run_sync(Base.metadata.create_all)
-        # Insertar roles iniciales
         await seed_roles(conn)
         logger.info("PostgreSQL tables created and roles seeded")
 
+    # ---------------------------
+    # Inicializar LangGraphAgent con Redis y Postgres
+    # ---------------------------
+
+    SQLALCHEMY_DATABASE_URI = (
+    f"postgresql://{config.POSTGRES_USER}:{config.POSTGRES_PASSWORD}"
+    f"@{config.POSTGRES_HOST}:{config.POSTGRES_PORT}/{config.POSTGRES_DB}"
+)
+
+
+    app.agent = LangGraphAgent(
+        db_uri=SQLALCHEMY_DATABASE_URI, redis_uri=config.REDIS_DB_URI
+    )
+    logger.info("Starting LangGraphAgent...")
+    # ---------------------------
+    # Ping async databases concurrently
+    # ---------------------------
     await gather(
         ping_redis_server(redis=app.redis_client),
         ping_mongo_db_server(app.mongodb),
+        app.agent.start(),
     )
-    logger_uvicorn.info(f"Connected to database {config.MONGO_MODEL_DB}")
+    logger.info(f"All databases connected successfully")
 
-    yield
+    logger.info("LangGraphAgent started successfully.")
+
+    yield  # punto donde la app ya está lista para servir requests
+
+    # ---------------------------
+    # Shutdown: cerrar recursos
+    # ---------------------------
+    logger.info("Shutting down FastAPI app and closing connections...")
+    await app.redis_client.close()
     app.mongodb_client.close()
-    logger.info("Shutting down FastAPI app and closing PostgreSQL connection...")
     await engine.dispose()
-
-    # await eventhub_service.stop()
+    logger.info("All connections closed successfully")
+    logger.info("Shutting down LangGraphAgent...")
+    await app.agent.shutdown()
+    logger.info("LangGraphAgent shutdown complete.")
 
 
 def get_app():
